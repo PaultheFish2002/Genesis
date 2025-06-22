@@ -1689,9 +1689,7 @@ class RigidSolver(Solver):
         # self._func_actuation()
         self._func_bias_force()
         self._func_compute_qacc()
-
-    @ti.kernel
-    def _kernel_clear_external_force(self):
+        # FIXME: External forces should be cleared at the end of the step, not during substeps.
         self._func_clear_external_force()
 
     def substep(self):
