@@ -1,0 +1,153 @@
+<?xml version="1.0" ?>
+
+<list version="20250411">
+    
+    <!--  141飞机的参数  -->
+    <aircraft name="DX141">
+        
+        <loop name="bodyrate">
+            <!-- 角速度控制环的参数，
+                给控制器插件QuadrotorMixer用的 -->
+            <p_roll> 0.01 </p_roll>
+            <i_roll> 0.0 </i_roll>
+            <d_roll> 0.0 </d_roll>
+            <ff_roll> 0.0 </ff_roll>
+            <lim_int_roll> 0.3 </lim_int_roll>
+            
+            <p_pitch> 0.01 </p_pitch>
+            <i_pitch> 0.0 </i_pitch>
+            <d_pitch> 0.0 </d_pitch>
+            <ff_pitch> 0.0 </ff_pitch>
+            <lim_int_pitch> 0.3 </lim_int_pitch>
+
+            <p_yaw> 0.03 </p_yaw>
+            <i_yaw> 0.0 </i_yaw>
+            <d_yaw> 0.0 </d_yaw>
+            <ff_yaw> 0.0 </ff_yaw>
+            <lim_int_yaw> 0.3 </lim_int_yaw>
+
+            <!-- 遥控器曲线参数 -->
+            <roll_max> 720.0 </roll_max> <!-- 最大角速度，单位deg/s -->
+            <roll_expo> 0.69 </roll_expo>
+            <roll_superexpo> 0.7 </roll_superexpo>
+
+            <pitch_max> 720.0 </pitch_max>
+            <pitch_expo> 0.69 </pitch_expo>
+            <pitch_superexpo> 0.7 </pitch_superexpo>
+
+            <yaw_max> 540.0 </yaw_max>
+            <yaw_expo> 0.69 </yaw_expo>
+            <yaw_superexpo> 0.7 </yaw_superexpo>
+        </loop>
+        
+        <loop name="bodyangle">
+            <p> 0.1016 </p>
+            <i> 0.1016 </i>
+            <d> 0.1524 </d>
+        </loop>
+
+        <loop name="position_control">
+            <p_pos_x> 1.50 </p_pos_x>
+            <p_pos_y> 1.50 </p_pos_y>
+            <p_pos_z> 1.0 </p_pos_z>
+            
+            <p_vel_x> 4.0 </p_vel_x>
+            <p_vel_y> 4.0 </p_vel_y>
+            <p_vel_z> 4.0 </p_vel_z>
+            
+            <i_vel_x> 0.4 </i_vel_x>
+            <i_vel_y> 0.4 </i_vel_y>
+            <i_vel_z> 2.0 </i_vel_z>
+            
+            <d_vel_x> 0.2 </d_vel_x>
+            <d_vel_y> 0.2 </d_vel_y>
+            <d_vel_z> 0.0 </d_vel_z>
+
+            <lim_vel_horizontal> 3 </lim_vel_horizontal>
+            <lim_vel_up> 5.0 </lim_vel_up>
+            <lim_vel_down> 0.1 </lim_vel_down>
+            <lim_thr_min> 0.01 </lim_thr_min>
+            <lim_thr_max> 0.99 </lim_thr_max>
+
+            <hover_thrust> 0.27 </hover_thrust>
+        </loop>
+    </aircraft>
+
+    <aircraft name="F450">
+
+        <loop name="bodyrate">
+            <!-- 角速度控制环的参数，
+                给控制器插件QuadrotorMixer用的 -->
+            <p_roll> 0.025 </p_roll>
+            <i_roll> 0.0 </i_roll>
+            <d_roll> 0.01 </d_roll>
+            <ff_roll> 0.0 </ff_roll>
+            <lim_int_roll> 0.3 </lim_int_roll>
+
+            <p_pitch> 0.025 </p_pitch>
+            <i_pitch> 0.0 </i_pitch>
+            <d_pitch> 0.01 </d_pitch>
+            <ff_pitch> 0.0 </ff_pitch>
+            <lim_int_pitch> 0.3 </lim_int_pitch>
+
+            <p_yaw> 0.05 </p_yaw>
+            <i_yaw> 0.0 </i_yaw>
+            <d_yaw> 0.05 </d_yaw>
+            <ff_yaw> 0.0 </ff_yaw>
+            <lim_int_yaw> 0.3 </lim_int_yaw>
+            
+            <!-- 遥控器曲线参数 -->
+            <roll_max> 720.0 </roll_max> <!-- 最大角速度，单位deg/s -->
+            <roll_expo> 0.69 </roll_expo>
+            <roll_superexpo> 0.7 </roll_superexpo>
+
+            <pitch_max> 720.0 </pitch_max>
+            <pitch_expo> 0.69 </pitch_expo>
+            <pitch_superexpo> 0.7 </pitch_superexpo>
+
+            <yaw_max> 540.0 </yaw_max>
+            <yaw_expo> 0.69 </yaw_expo>
+            <yaw_superexpo> 0.7 </yaw_superexpo>
+        </loop>
+
+        <loop name="bodyangle">
+            <p> 0.1016 </p>
+            <i> 0.1016 </i>
+            <d> 0.1524 </d>
+        </loop>
+
+        <loop name="position_control">
+            <time_step> 0.02 </time_step>
+            
+            <p_pos_x> 0.5 </p_pos_x>
+            <p_pos_y> 0.5 </p_pos_y>
+            <p_pos_z> 1.0 </p_pos_z>
+
+            <p_vel_x> 1.0 </p_vel_x>
+            <p_vel_y> 1.0 </p_vel_y>
+            <p_vel_z> 3.0 </p_vel_z>
+
+            <i_vel_x> 0.02 </i_vel_x>
+            <i_vel_y> 0.02 </i_vel_y>
+            <i_vel_z> 0.1 </i_vel_z>
+
+            <d_vel_x> 0.2 </d_vel_x>
+            <d_vel_y> 0.2 </d_vel_y>
+            <d_vel_z> 0.0 </d_vel_z>
+
+            <lim_vel_horizontal> 10 </lim_vel_horizontal>
+            <lim_vel_up> 5.0 </lim_vel_up>
+            <lim_vel_down> 5.0 </lim_vel_down>
+            <lim_thr_min> 0.01 </lim_thr_min>
+            <lim_thr_max> 0.99 </lim_thr_max>
+
+            <hover_thrust> 0.16 </hover_thrust>
+        </loop>
+    </aircraft>
+    
+    <!-- 遥控器通道配置参数 -->
+    <remote_controller>
+        
+    </remote_controller>
+    
+</list>

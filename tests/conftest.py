@@ -102,9 +102,9 @@ def pytest_xdist_auto_num_workers(config):
     if sys.platform == "darwin":
         ram_memory_per_worker = 3.0
         vram_memory_per_worker = 1.0  # Does not really makes sense on Apple Silicon
-    elif config.option.forked:
-        ram_memory_per_worker = 5.5
-        vram_memory_per_worker = 1.2
+    # elif config.option.forked:
+    #     ram_memory_per_worker = 5.5
+    #     vram_memory_per_worker = 1.2
     else:
         ram_memory_per_worker = 7.5
         vram_memory_per_worker = 1.6

@@ -1,6 +1,7 @@
 import numpy as np
 
-from . import _replay
+# from . import _replay
+import genesis.ext.fast_simplification._replay as _replay
 from .utils import ascontiguous
 
 
