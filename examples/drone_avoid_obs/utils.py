@@ -9,6 +9,24 @@ class ObstacleType(Enum):
     CYLINDER = 1
     SPHERE = 2
 
+class RegionType(Enum):
+    CIRCLE = 0
+    RECTANGLE = 1
+    POLYGON = 2
+
+class Obstacle:
+    # 障碍物类, 暂时不用
+    def __init__(self, 
+                 type : ObstacleType = ObstacleType.CYLINDER, 
+                 size : tuple = (0.1, 0.1, 1.0),    # r1, r2, h
+                 pos : tuple = (0.0,0.0,0.0),       # x, y, z
+                 att_q : tuple = (0.0,0.0,0.0,0.0)  # w, x, y, z
+                 ):
+        self.type = type
+        self.size = size
+        self.pos = pos
+        self.att_q = att_q
+
 # 相机绑定
 def gs_rand_float(lower, upper, shape, device):
     return (upper - lower) * torch.rand(size=shape, device=device) + lower
