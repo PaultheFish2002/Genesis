@@ -35,7 +35,7 @@ class Solver(RBC):
         self._B = self._sim._B
         if self._init_gravity is not None:
             g_np = np.asarray(self._init_gravity, dtype=gs.np_float)
-            g_np = np.repeat(g_np[None], self._B, axis=0)
+            g_np = np.tile(g_np, (self._B, 1))
             self._gravity = ti.Vector.field(3, dtype=gs.ti_float, shape=self._B)
             self._gravity.from_numpy(g_np)
 
@@ -46,7 +46,7 @@ class Solver(RBC):
         g = np.asarray(gravity, dtype=gs.np_float)
         if envs_idx is None:
             if g.ndim == 1:
-                g = np.repeat(g[None], self._B, axis=0)
+                g = np.tile(g, (self._B, 1))
             self._gravity.from_numpy(g)
         else:
             self._gravity[envs_idx] = g
@@ -69,6 +69,15 @@ class Solver(RBC):
                     )
             else:
                 arrays[key_base] = data if isinstance(data, np.ndarray) else np.asarray(data)
+
+        # if it has data_manager, add it to the arrays
+        if hasattr(self, "data_manager"):
+            for attr_name, struct in self.data_manager.__dict__.items():
+                for sub_name, sub_arr in struct.__dict__.items():
+                    # if it's a ti.Field or ti.Ndarray, convert to numpy
+                    if isinstance(sub_arr, ti.Field) or isinstance(sub_arr, ti.Ndarray):
+                        store_name = f"{self.__class__.__name__}.data_manager.{attr_name}.{sub_name}"
+                        arrays[store_name] = sub_arr.to_numpy()
 
         return arrays
 
@@ -97,6 +106,18 @@ class Solver(RBC):
 
             arr = arr_dict[key_base]
             field.from_numpy(arr)
+
+        # if it has data_manager, add it to the arrays
+        if hasattr(self, "data_manager"):
+            for attr_name, struct in self.data_manager.__dict__.items():
+                for sub_name, sub_arr in struct.__dict__.items():
+                    # if it's a ti.Field or ti.Ndarray, convert to numpy
+                    if isinstance(sub_arr, ti.Field) or isinstance(sub_arr, ti.Ndarray):
+                        store_name = f"{self.__class__.__name__}.data_manager.{attr_name}.{sub_name}"
+                        if store_name in arr_dict:
+                            sub_arr.from_numpy(arr_dict[store_name])
+                        else:
+                            gs.logger.warning(f"Failed to load {store_name}. Not found in stored arrays.")
 
     # ------------------------------------------------------------------------------------
     # ----------------------------------- properties -------------------------------------

@@ -7,7 +7,8 @@ from genesis.engine.entities.base_entity import Entity
 from genesis.options.morphs import Morph
 from genesis.options.solvers import (
     AvatarOptions,
-    CouplerOptions,
+    BaseCouplerOptions,
+    LegacyCouplerOptions,
     SAPCouplerOptions,
     FEMOptions,
     MPMOptions,
@@ -20,7 +21,7 @@ from genesis.options.solvers import (
 )
 from genesis.repr_base import RBC
 
-from .coupler import Coupler, SAPCoupler
+from .couplers import LegacyCoupler, SAPCoupler
 from .entities import HybridEntity
 from .solvers.base_solver import Solver
 from .solvers import (
@@ -75,7 +76,7 @@ class Simulator(RBC):
         self,
         scene: "Scene",
         options: SimOptions,
-        coupler_options: CouplerOptions,
+        coupler_options: BaseCouplerOptions,
         tool_options: ToolOptions,
         rigid_options: RigidOptions,
         avatar_options: AvatarOptions,
@@ -107,7 +108,7 @@ class Simulator(RBC):
         self._steps_local = options._steps_local
 
         self._cur_substep_global = 0
-        self._gravity = np.array(options.gravity)
+        self._gravity = np.array(options.gravity, dtype=gs.np_float)
 
         # solvers
         self.tool_solver = ToolSolver(self.scene, self, self.tool_options)
@@ -137,8 +138,12 @@ class Simulator(RBC):
         # coupler
         if isinstance(self.coupler_options, SAPCouplerOptions):
             self._coupler = SAPCoupler(self, self.coupler_options)
+        elif isinstance(self.coupler_options, LegacyCouplerOptions):
+            self._coupler = LegacyCoupler(self, self.coupler_options)
         else:
-            self._coupler = Coupler(self, self.coupler_options)
+            gs.raise_exception(
+                f"Coupler options {self.coupler_options} not supported. Please use SAPCouplerOptions or LegacyCouplerOptions."
+            )
 
         # states
         self._queried_states = QueriedStates()
@@ -268,7 +273,7 @@ class Simulator(RBC):
                     self.save_ckpt()
 
         if self.rigid_solver.is_active():
-            self.rigid_solver._kernel_clear_external_force()
+            self.rigid_solver.clear_external_force()
 
     def _step_grad(self):
         for _ in range(self._substeps - 1, -1, -1):

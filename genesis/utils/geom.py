@@ -147,9 +147,15 @@ def ti_quat_to_xyz(quat):
         q_xx, q_xy, q_xz = q_x * q_xs, q_x * q_ys, q_x * q_zs
         q_yy, q_yz, q_zz = q_y * q_ys, q_y * q_zs, q_z * q_zs
 
+        siny_cosp = q_wz - q_xy
+        cosy_cosp = 1.0 - (q_yy + q_zz)
+        hypot_min = ti.min(siny_cosp, cosy_cosp)
+        hypot_max = ti.max(siny_cosp, cosy_cosp)
+        cosp = ti.select(hypot_max > 0.0, hypot_max * ti.sqrt(1.0 + (hypot_min / hypot_max) ** 2), 0.0)
+
         roll = ti.atan2(q_wx - q_yz, 1.0 - (q_xx + q_yy))
-        pitch = -0.5 * ti.math.pi + 2.0 * ti.atan2(ti.sqrt(1.0 + (q_xz + q_wy)), ti.sqrt(1.0 - (q_xz + q_wy)))
-        yaw = ti.atan2(q_wz - q_xy, 1.0 - (q_yy + q_zz))
+        pitch = ti.atan2(q_xz + q_wy, cosp)
+        yaw = ti.atan2(siny_cosp, cosy_cosp)
 
     return ti.Vector([roll, pitch, yaw], dt=gs.ti_float)
 
@@ -400,6 +406,22 @@ def inv_quat(quat):
     return _quat
 
 
+def inv_T(T):
+    if isinstance(T, torch.Tensor):
+        T_inv = torch.zeros_like(T)
+    elif isinstance(T, np.ndarray):
+        T_inv = np.zeros_like(T)
+    else:
+        gs.raise_exception(f"the input must be torch.Tensor or np.ndarray. got: {type(T)=}")
+
+    trans, R = T[..., :3, 3], T[..., :3, :3]
+    T_inv[..., 3, 3] = 1.0
+    T_inv[..., :3, 3] = -R.T @ trans
+    T_inv[..., :3, :3] = R.T
+
+    return T_inv
+
+
 def normalize(x, eps: float = 1e-12):
     if isinstance(x, torch.Tensor):
         return x / x.norm(p=2, dim=-1).clamp(min=eps, max=None).unsqueeze(-1)
@@ -520,7 +542,7 @@ def xyz_to_quat(xyz, rpy=False, degrees=False):
     elif isinstance(xyz, np.ndarray):
         return _np_xyz_to_quat(xyz, rpy)
     else:
-        gs.raise_exception(f"the input must be either torch.Tensor or np.ndarray. got: {type(euler_xyz)=}")
+        gs.raise_exception(f"the input must be either torch.Tensor or np.ndarray. got: {type(xyz)=}")
 
 
 @nb.jit(nopython=True, cache=True)
@@ -621,22 +643,23 @@ def _np_quat_to_xyz(quat, rpy=False, out=None):
     q_yy, q_yz, q_zz = q_y * q_ys, q_y * q_zs, q_z * q_zs
 
     if rpy:
-        sinr_cosp = q_wx + q_yz
-    else:
-        sinr_cosp = q_wx - q_yz
-    out_[..., 0] = np.arctan2(sinr_cosp, 1.0 - (q_xx + q_yy))
-
-    if rpy:
         sinp = q_wy - q_xz
-    else:
-        sinp = q_xz + q_wy
-    out_[..., 1] = -0.5 * math.pi + 2.0 * np.arctan2(np.sqrt(1.0 + sinp), np.sqrt(1.0 - sinp))
-
-    if rpy:
+        sinr_cosp = q_wx + q_yz
         siny_cosp = q_wz + q_xy
     else:
+        sinp = q_xz + q_wy
+        sinr_cosp = q_wx - q_yz
         siny_cosp = q_wz - q_xy
-    out_[..., 2] = np.arctan2(siny_cosp, 1.0 - (q_yy + q_zz))
+    cosr_cosp = 1.0 - (q_xx + q_yy)
+    cosy_cosp = 1.0 - (q_yy + q_zz)
+
+    hypot_min = np.minimum(siny_cosp, cosy_cosp)
+    hypot_max = np.maximum(siny_cosp, cosy_cosp)
+    cosp = np.where(hypot_max > 0.0, hypot_max * np.sqrt(1.0 + (hypot_min / hypot_max) ** 2), 0.0)
+
+    out_[..., 0] = np.arctan2(sinr_cosp, cosr_cosp)
+    out_[..., 1] = np.arctan2(sinp, cosp)
+    out_[..., 2] = np.arctan2(siny_cosp, cosy_cosp)
 
     return out_
 
@@ -655,27 +678,33 @@ def _tc_quat_to_xyz(quat, rpy=False, out=None):
     q_yy, q_yz = torch.unbind(q_y * q_vec_s[..., 1:], -1)
     q_zz = q_z[..., 0] * q_vec_s[..., 2]
 
-    # Roll (x-axis rotation)
+    # Compute some intermediary quantities
     if rpy:
+        sinp = q_wy - q_xz
         sinr_cosp = q_wx + q_yz
+        siny_cosp = q_wz + q_xy
     else:
+        sinp = q_xz + q_wy
         sinr_cosp = q_wx - q_yz
+        siny_cosp = q_wz - q_xy
     cosr_cosp = 1.0 - (q_xx + q_yy)
+    cosy_cosp = 1.0 - (q_yy + q_zz)
+
+    # Use numerical robust formula for computing cos(pitch)
+    # See Eigen implementation for reference:
+    # https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Geometry/EulerAngles.h#L45
+    # https://gitlab.com/libeigen/eigen/-/blob/master/Eigen/src/Core/MathFunctionsImpl.h#L149
+    hypot_min = torch.minimum(siny_cosp, cosy_cosp)
+    hypot_max = torch.maximum(siny_cosp, cosy_cosp)
+    cosp = torch.where(hypot_max > 0.0, hypot_max * torch.sqrt(1.0 + (hypot_min / hypot_max) ** 2), 0.0)
+
+    # Roll (x-axis rotation)
     out[..., 0] = torch.atan2(sinr_cosp, cosr_cosp)
 
     # Pitch (y-axis rotation)
-    if rpy:
-        sinp = q_wy - q_xz
-    else:
-        sinp = q_xz + q_wy
-    out[..., 1] = -0.5 * math.pi + 2.0 * torch.atan2(torch.sqrt(1.0 + sinp), torch.sqrt(1.0 - sinp))
+    out[..., 1] = torch.atan2(sinp, cosp)
 
     # Yaw (z-axis rotation)
-    if rpy:
-        siny_cosp = q_wz + q_xy
-    else:
-        siny_cosp = q_wz - q_xy
-    cosy_cosp = 1.0 - (q_yy + q_zz)
     out[..., 2] = torch.atan2(siny_cosp, cosy_cosp)
 
     return out
@@ -845,7 +874,9 @@ def trans_quat_to_T(trans=None, quat=None, *, out=None):
         if T is None:
             T = np.zeros((*B, 4, 4), dtype=trans.dtype)
     else:
-        gs.raise_exception(f"both of the inputs must be torch.Tensor or np.ndarray. got: {type(trans)=} and {type(R)=}")
+        gs.raise_exception(
+            f"both of the inputs must be torch.Tensor or np.ndarray. got: {type(trans)=} and {type(quat)=}"
+        )
     if B:
         assert T.shape == (*B, 4, 4)
 
@@ -856,6 +887,12 @@ def trans_quat_to_T(trans=None, quat=None, *, out=None):
         quat_to_R(quat, out=T[..., :3, :3])
 
     return T
+
+
+def T_to_trans_quat(T, *, out=None):
+    trans = T[..., :3, 3]
+    quat = R_to_quat(T[..., :3, :3])
+    return trans, quat
 
 
 @nb.jit(nopython=True, cache=True)
@@ -908,7 +945,7 @@ def transform_quat_by_quat(v, u):
 
     This is equivalent to quatmul(quat_u, quat_v) or R_u @ R_v
     """
-    assert u.shape == v.shape
+    assert u.shape == v.shape, f"{u.shape=} and {v.shape=}"
     assert u.ndim >= 1
 
     if all(isinstance(e, torch.Tensor) for e in (u, v)):
@@ -1050,9 +1087,7 @@ def transform_by_R(pos, R):
     elif all(isinstance(e, np.ndarray) for e in (pos, R) if e is not None):
         new_pos = np.matmul(R, pos_.swapaxes(1, 2)).swapaxes(1, 2)
     else:
-        gs.raise_exception(
-            f"both of the inputs must be torch.Tensor or np.ndarray. got: {type(angle)=} and {type(axis)=}"
-        )
+        gs.raise_exception(f"both of the inputs must be torch.Tensor or np.ndarray. got: {type(pos)=} and {type(R)=}")
 
     new_pos = new_pos.reshape(pos.shape)
 
@@ -1227,7 +1262,7 @@ def quat_to_rotvec(quat: np.ndarray, out: np.ndarray | None = None) -> np.ndarra
     """
     assert quat.ndim >= 1
     if out is None:
-        out_ = np.empty((*quat.shape[:-1], 3), dtype=u.dtype)
+        out_ = np.empty((*quat.shape[:-1], 3), dtype=quat.dtype)
     else:
         assert out.shape == (*quat.shape[:-1], 3)
         out_ = out
@@ -1258,7 +1293,7 @@ def rotvec_to_quat(rotvec: np.ndarray, out: np.ndarray | None = None) -> np.ndar
     """
     assert rotvec.ndim >= 1
     if out is None:
-        out_ = np.empty((*rotvec.shape[:-1], 4), dtype=u.dtype)
+        out_ = np.empty((*rotvec.shape[:-1], 4), dtype=rotvec.dtype)
     else:
         assert out.shape == (*rotvec.shape[:-1], 4)
         out_ = out
@@ -1277,7 +1312,7 @@ def rotvec_to_quat(rotvec: np.ndarray, out: np.ndarray | None = None) -> np.ndar
 
 @nb.jit(nopython=True, cache=True)
 def _np_axis_cos_angle_to_R(axis: np.ndarray, cos_theta: np.ndarray, out: np.ndarray | None = None) -> np.ndarray:
-    if isinstance(cos_theta, float):
+    if isinstance(cos_theta, (float, np.float32, np.float64)):
         assert axis.ndim == 1
     else:
         assert axis.ndim - 1 == cos_theta.ndim
@@ -1289,7 +1324,7 @@ def _np_axis_cos_angle_to_R(axis: np.ndarray, cos_theta: np.ndarray, out: np.nda
 
     axis_norm = np.sqrt(np.sum(np.square(axis.reshape((-1, 3))), -1).reshape((*axis.shape[:-1], 1)))
     axis = axis / axis_norm
-    if not isinstance(cos_theta, float):
+    if not isinstance(cos_theta, (float, np.float32, np.float64)):
         cos_theta = cos_theta[..., None]
     sin_theta = np.sqrt(1.0 - cos_theta**2)
     cos1_axis = (1.0 - cos_theta) * axis
@@ -1498,24 +1533,24 @@ def random_quaternion(batch_size):
 
 
 def zero_pos():
-    return np.zeros(3)
+    return np.zeros(3, dtype=gs.np_float)
 
 
 def identity_quat():
-    return np.array([1.0, 0.0, 0.0, 0.0])
+    return np.array([1.0, 0.0, 0.0, 0.0], dtype=gs.np_float)
 
 
 def tc_zero_pos():
-    return torch.zeros(3, device=gs.device)
+    return torch.zeros(3, dtype=gs.tc_float, device=gs.device)
 
 
 def tc_identity_quat():
-    return torch.tensor([1.0, 0.0, 0.0, 0.0], device=gs.device)
+    return torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=gs.tc_float, device=gs.device)
 
 
 def nowhere():
     # let's inject a bit of humor here
-    return np.array([2333333, 6666666, 5201314])
+    return np.array([2333333, 6666666, 5201314], dtype=gs.np_float)
 
 
 def default_solver_params():
@@ -1532,11 +1567,11 @@ def default_friction():
 
 
 def default_dofs_kp(n=6):
-    return np.tile(100.0, n).astype(gs.np_float)
+    return np.full((n,), fill_value=100.0, dtype=gs.np_float)
 
 
 def default_dofs_kv(n=6):
-    return np.tile(10.0, n).astype(gs.np_float)
+    return np.full((n,), fill_value=10.0, dtype=gs.np_float)
 
 
 @ti.data_oriented
