@@ -1,6 +1,7 @@
 import os
 import pickle as pkl
 
+import fast_simplification
 import numpy as np
 import numpy.typing as npt
 import pyvista as pv
@@ -14,7 +15,6 @@ import genesis.utils.mesh as mu
 import genesis.utils.gltf as gltf_utils
 import genesis.utils.usda as usda_utils
 import genesis.utils.particle as pu
-from genesis.ext import fast_simplification
 from genesis.repr_base import RBC
 
 
@@ -60,6 +60,7 @@ class Mesh(RBC):
         self._surface = surface
         self._uvs = uvs
         self._metadata = metadata or {}
+        self._color = np.array([1.0, 1.0, 1.0, 1.0], dtype=gs.np_float)
 
         if self._surface.requires_uv():  # check uvs here
             if self._uvs is None:
@@ -383,6 +384,7 @@ class Mesh(RBC):
         """
         Set the mesh's color.
         """
+        self._color = color
         color_texture = gs.textures.ColorTexture(color=tuple(color))
         opacity_texture = color_texture.check_dim(3)
         self._surface.update_texture(color_texture=color_texture, opacity_texture=opacity_texture, force=True)
