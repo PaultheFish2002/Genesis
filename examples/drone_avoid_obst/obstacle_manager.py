@@ -174,7 +174,7 @@ class ObstacleManager:
             self.reset_obst_sampled()
         
         self.takeoff_protection_region = takeoff_prot_region if takeoff_prot_region is not None else self.takeoff_protection_region
-        self.generate_obst_poses_InSample()
+        # self.generate_obst_poses_InSample()
 
     def reset_obst_attr(self, type=ObstacleType.CYLINDER):
         # 初始化障碍物，提供采样矩阵
@@ -402,7 +402,7 @@ class ObstacleManager:
                 self.obstacles_info[i][0] = self.obst_var_idx[i]
                 self.obstacles_info[i][1:4] = self.obstacles_attr[self.obst_var_idx[i]]
                 self.obstacles_info[i][4:6] = torch.tensor(attr[:2])
-                self.obstacles_info[i][6] = self.obstacles_info[i][3] / 2 + 0. # h/2 + 0.
+                self.obstacles_info[i][6] = math.floor((self.obstacles_info[i][3] / 2) * 10 ** 1 ) / (10 ** 1)# h/2 + 0.
                 self.obstacles_info[i][7] = 1.0 # 默认原姿态
             
             return self.obstacles_info
@@ -479,22 +479,19 @@ class ObstManagerInScene(ObstacleManager):
     # 障碍物场景管理器，继承上述不依赖scene的障碍物管理器
     def __init__(self, 
                  scene : gs.Scene,
-                 num_envs: int,
                  obst_cfg_dict : dict = None, 
                  cntr_pts_list : list = [[0.0, 0.0]], 
                  dense_func : str = "uniform",
                  debug_mode : bool = False,
-                 torch_device = "cuda" # 外部判断改 cuda
                  ):
         super().__init__(
             obst_cfg_dict = obst_cfg_dict,
             cntr_pts_list = cntr_pts_list,
             dense_func = dense_func,
             debug_mode = debug_mode,
-            torch_device = torch_device
+            torch_device = gs.device # gs init 必然会初始化 device
         )
         self.scene = scene
-        self.num_envs = num_envs
         self.debug_pos_entities = []
         self.obst_entities = []
     def render_debug_poses(self, pts_list, scale = 0.05, color_traj = (0.5, 1.0, 0.5), color_extr = (0.5, 0.5, 0.5)):
@@ -542,7 +539,7 @@ class ObstManagerInScene(ObstacleManager):
         self.takeoff_protection_region = takeoff_prot_region if takeoff_prot_region is not None else self.takeoff_protection_region
         self.generate_obst_poses_InSample()
     
-    @staticmethod
+    @staticmethod # TODO: 把位置初始化放到外边去
     def init_obst_entities(scene: gs.Scene, obst_info: torch.Tensor):
         obst_entities = []
         for obst in obst_info.tolist():
@@ -574,8 +571,8 @@ class ObstManagerInScene(ObstacleManager):
     def update_obst_poses(obst_entities: list, obst_info: torch.Tensor, num_envs: int):
         # 此处仅考虑位置发生改变的情况, 在scene.build之后才调用
         for idx, obst in enumerate(obst_info.tolist()):
-            obst_entities[idx].set_pos(tuple(obst[4:7]), zero_velocity=True, envs_idx=list(range(num_envs)))
-            obst_entities[idx].set_quat(tuple(obst[7:]), zero_velocity=True, envs_idx=list(range(num_envs)))
+            obst_entities[idx].set_pos(torch.tensor(obst[4:7]).tile([num_envs, 1]), zero_velocity=True, envs_idx=list(range(num_envs)))
+            obst_entities[idx].set_quat(torch.tensor(obst[7:]).tile([num_envs, 1]), zero_velocity=True, envs_idx=list(range(num_envs)))
         return obst_entities
     
     def render_obst_entities(self, obst_info: torch.Tensor = None):
@@ -584,12 +581,16 @@ class ObstManagerInScene(ObstacleManager):
         if not self.obst_entities:
             self.obst_entities = ObstManagerInScene.init_obst_entities(self.scene, obst_info)
         else:
-            self.obst_entities = ObstManagerInScene.update_obst_poses(self.obst_entities, obst_info, self.num_envs)
+            # scene after build
+            self.obst_entities = ObstManagerInScene.update_obst_poses(self.obst_entities, obst_info, self.scene.n_envs)
 
-    def draw_obst_region(self, color=(1, 0, 0, 0.5), num_segments=64):
+    def draw_obst_region(self, color=(1, 1, 0, 0.5), num_segments=64):
         """
         在 scene 中绘制 debug line 用于可视化边界区域
         """
+        
+        self.scene.clear_debug_objects()
+        
         points = []
         if len(self.obst_region) == 3:
             cx, cy, cr = self.obst_region
@@ -613,6 +614,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--vis", action="store_true", default=True)
     parser.add_argument("-c", "--cpu", action="store_true", default=False)
+    parser.add_argument("-n", "--num_envs", type=int, default=25)
     args = parser.parse_args()
 
     ########################## init ##########################
@@ -642,7 +644,7 @@ def main():
         "robot_colli_safe_r": 0.2,
         "takeoff_protection_region": [0.0, 0.0, 0.5], # takeoff protection
         # obstacle settings
-        "obstacles": True,
+        "obst_enable": True,
         "obst_type": [1], # Detailed in class ObstacleType
         "obst_variety_num": 10, # obstacle shape variety
         "obst_region_type": "circle",
@@ -661,7 +663,7 @@ def main():
         "obst_range_height": [1.5, 3.0],
     }
     
-    obst_manager = ObstManagerInScene(scene=scene, num_envs=1, obst_cfg_dict=debug_obst_cfg)
+    obst_manager = ObstManagerInScene(scene=scene, obst_cfg_dict=debug_obst_cfg)
     
     ########################## entities ##########################
     # add plane
@@ -672,7 +674,7 @@ def main():
     # render 结束后就不能再添加障碍物了
     
     ########################## build ##########################
-    scene.build(n_envs=1)
+    scene.build(n_envs=args.num_envs, env_spacing=(20.0, 20.0),)
     
     # 可视化边界
     obst_manager.draw_obst_region()

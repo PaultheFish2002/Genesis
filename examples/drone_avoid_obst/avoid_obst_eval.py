@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--record", action="store_true", default=False)
     args = parser.parse_args()
 
-    gs.init(backend=gs.gpu)
+    gs.init()
 
     log_dir = f"logs/{args.exp_name}"
     env_cfg, obs_cfg, reward_cfg, command_cfg, train_cfg = pickle.load(open(f"logs/{args.exp_name}/cfgs.pkl", "rb"))
@@ -36,8 +36,6 @@ def main():
 
     # visualize the target
     env_cfg["visualize_target"] = True
-    # visualize the obstacles
-    env_cfg["visualize_obstacles"] = False
     # for video recording
     env_cfg["visualize_camera"] = args.record
     # set the max FPS for visualization
