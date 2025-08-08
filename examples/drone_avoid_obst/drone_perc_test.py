@@ -67,6 +67,7 @@ class DronePerceptionTest:
         return perc_obst_idx
     def perc_obst_in_sight(self, drone_pos: torch.Tensor, obst_info: torch.Tensor):
         # 带obst视角遮盖的方法，用于进一步筛选视线范围内障碍物，为后续深度估计做准备
+        
         pass
     
     def calc_observation_mat(self):
